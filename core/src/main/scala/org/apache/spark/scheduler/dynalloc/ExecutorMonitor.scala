@@ -342,7 +342,8 @@ private[spark] class ExecutorMonitor(
   override def onExecutorAdded(event: SparkListenerExecutorAdded): Unit = {
     val exec = ensureExecutorIsTracked(event.executorId, event.executorInfo.resourceProfileId)
     exec.updateRunningTasks(0)
-    logInfo(s"New executor ${event.executorId} has registered (new total is ${executors.size()})")
+    val now = clock.getTimeMillis()
+    logInfo(s"New executor ${event.executorId} has registered at timestamp ${now} (new total is ${executors.size()})")
   }
 
   private def decrementExecResourceProfileCount(rpId: Int): Unit = {
@@ -367,7 +368,8 @@ private[spark] class ExecutorMonitor(
       } else {
         metrics.exitedUnexpectedly.inc()
       }
-      logInfo(s"Executor ${event.executorId} is removed. Remove reason statistics: (" +
+      val now = clock.getTimeMillis()
+      logInfo(s"Executor ${event.executorId} is removed at timestamp ${now}. Remove reason statistics: (" +
         s"gracefully decommissioned: ${metrics.gracefullyDecommissioned.getCount()}, " +
         s"decommision unfinished: ${metrics.decommissionUnfinished.getCount()}, " +
         s"driver killed: ${metrics.driverKilled.getCount()}, " +

@@ -18,6 +18,7 @@
 package org.apache.spark.scheduler
 
 import scala.collection.mutable.HashSet
+import scala.util.hashing.MurmurHash3
 
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.internal.Logging
@@ -73,6 +74,9 @@ private[scheduler] abstract class Stage(
 
   val name: String = callSite.shortForm
   val details: String = callSite.longForm
+
+  /** Create a unique key based on rdds features, callsite, and parent stages keys */
+  val key: Int = MurmurHash3.unorderedHash(rdd.key :: MurmurHash3.stringHash(name) :: parents.map(p => p.key), 0)
 
   /**
    * Pointer to the [[StageInfo]] object for the most recent attempt. This needs to be initialized

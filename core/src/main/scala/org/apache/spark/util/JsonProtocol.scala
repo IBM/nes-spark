@@ -163,6 +163,7 @@ private[spark] object JsonProtocol {
     ("Submission Time" -> jobStart.time) ~
     ("Stage Infos" -> jobStart.stageInfos.map(stageInfoToJson)) ~  // Added in Spark 1.2.0
     ("Stage IDs" -> jobStart.stageIds) ~
+    ("Stage Keys" -> jobStart.stageKeys) ~
     ("Properties" -> properties)
   }
 
@@ -300,6 +301,7 @@ private[spark] object JsonProtocol {
     val completionTime = stageInfo.completionTime.map(JInt(_)).getOrElse(JNothing)
     val failureReason = stageInfo.failureReason.map(JString(_)).getOrElse(JNothing)
     ("Stage ID" -> stageInfo.stageId) ~
+    ("Stage Key" -> stageInfo.stageKey) ~
     ("Stage Attempt ID" -> stageInfo.attemptNumber) ~
     ("Stage Name" -> stageInfo.name) ~
     ("Number of Tasks" -> stageInfo.numTasks) ~
@@ -494,6 +496,7 @@ private[spark] object JsonProtocol {
     val storageLevel = storageLevelToJson(rddInfo.storageLevel)
     val parentIds = JArray(rddInfo.parentIds.map(JInt(_)).toList)
     ("RDD ID" -> rddInfo.id) ~
+    ("RDD Key" -> rddInfo.key) ~
     ("Name" -> rddInfo.name) ~
     ("Scope" -> rddInfo.scope.map(_.toJson)) ~
     ("Callsite" -> rddInfo.callSite) ~
@@ -720,7 +723,7 @@ private[spark] object JsonProtocol {
     val stageInfos = jsonOption(json \ "Stage Infos")
       .map(_.extract[Seq[JValue]].map(stageInfoFromJson)).getOrElse {
         stageIds.map { id =>
-          new StageInfo(id, 0, "unknown", 0, Seq.empty, Seq.empty, "unknown",
+          new StageInfo(id, 0, 0, "unknown", 0, Seq.empty, Seq.empty, "unknown",
             resourceProfileId = ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID)
         }
       }
@@ -882,6 +885,7 @@ private[spark] object JsonProtocol {
 
   def stageInfoFromJson(json: JValue): StageInfo = {
     val stageId = (json \ "Stage ID").extract[Int]
+    val stageKey = (json \ "Stage Key").extract[Int]
     val attemptId = jsonOption(json \ "Stage Attempt ID").map(_.extract[Int]).getOrElse(0)
     val stageName = (json \ "Stage Name").extract[String]
     val numTasks = (json \ "Number of Tasks").extract[Int]
@@ -902,7 +906,7 @@ private[spark] object JsonProtocol {
 
     val rpId = jsonOption(json \ "Resource Profile Id").map(_.extract[Int])
     val stageProf = rpId.getOrElse(ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID)
-    val stageInfo = new StageInfo(stageId, attemptId, stageName, numTasks, rddInfos,
+    val stageInfo = new StageInfo(stageId, stageKey, attemptId, stageName, numTasks, rddInfos,
       parentIds, details, resourceProfileId = stageProf)
     stageInfo.submissionTime = submissionTime
     stageInfo.completionTime = completionTime
@@ -1165,6 +1169,7 @@ private[spark] object JsonProtocol {
 
   def rddInfoFromJson(json: JValue): RDDInfo = {
     val rddId = (json \ "RDD ID").extract[Int]
+    val rddKey = (json \ "RDD Key").extract[Int]
     val name = (json \ "Name").extract[String]
     val scope = jsonOption(json \ "Scope")
       .map(_.extract[String])
@@ -1184,7 +1189,7 @@ private[spark] object JsonProtocol {
       jsonOption(json \ "DeterministicLevel").map(_.extract[String]).getOrElse("DETERMINATE"))
 
     val rddInfo =
-      new RDDInfo(rddId, name, numPartitions, storageLevel, isBarrier, parentIds, callsite, scope,
+      new RDDInfo(rddId, rddKey, name, numPartitions, storageLevel, isBarrier, parentIds, callsite, scope,
         outputDeterministicLevel)
     rddInfo.numCachedPartitions = numCachedPartitions
     rddInfo.memSize = memSize

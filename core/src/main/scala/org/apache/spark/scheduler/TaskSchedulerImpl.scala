@@ -145,6 +145,12 @@ private[spark] class TaskSchedulerImpl(
     executorIdToRunningTaskIds.toMap.mapValues(_.size).toMap
   }
 
+  def getNumTasksExecutor(executorId: String): Int = synchronized {
+    runningTasksByExecutors.getOrElse("executor" + executorId, 0)
+  }
+
+  var latestExecutorsIds: Array[String] = Array()
+
   // The set of executors we have on each host; this is used to compute hostsAlive, which
   // in turn is used to decide when we can attain data locality on a given host
   protected val hostToExecutors = new HashMap[String, HashSet[String]]
@@ -350,6 +356,16 @@ private[spark] class TaskSchedulerImpl(
     }
     noRejectsSinceLastReset -= manager.taskSet
     manager.parent.removeSchedulable(manager)
+    if (conf.getBoolean("spark.scheduler.scaleout.enabled", false) == true) {
+      for (execId <- manager.executorsIds) {
+       markExecutorAsFree(execId)
+      }
+      logInfo("Releaving executors " + manager.executorsIds.mkString(" "))
+      if ( !(manager.executorsIds).sameElements(latestExecutorsIds)) {
+        logInfo("latestExecutorsIds does not match with last taskSet executorsIds, update!")
+        latestExecutorsIds = manager.executorsIds
+      }
+    }
     logInfo(s"Removed TaskSet ${manager.taskSet.id}, whose tasks have all completed, from pool" +
       s" ${manager.parent.name}")
   }
@@ -381,6 +397,7 @@ private[spark] class TaskSchedulerImpl(
     // nodes and executors that are excluded for the entire application have already been
     // filtered out by this point
     for (i <- 0 until shuffledOffers.size) {
+      var mappings: Array[(String, AnyVal)] = Array()
       val execId = shuffledOffers(i).executorId
       val host = shuffledOffers(i).host
       val taskSetRpID = taskSet.taskSet.resourceProfileId
@@ -400,6 +417,7 @@ private[spark] class TaskSchedulerImpl(
               val (locality, resources) = if (task != null) {
                 tasks(i) += task
                 addRunningTask(task.taskId, execId, taskSet)
+                mappings :+= (execId, task.taskId)
                 (taskSet.taskInfos(task.taskId).taskLocality, task.resources)
               } else {
                 assert(taskSet.isBarrier, "TaskDescription can only be null for barrier task")
@@ -534,14 +552,14 @@ private[spark] class TaskSchedulerImpl(
       }
     }.getOrElse(offers)
 
-    val shuffledOffers = shuffleOffers(filteredOffers)
+    var shuffledOffers = shuffleOffers(filteredOffers)
     // Build a list of tasks to assign to each worker.
     // Note the size estimate here might be off with different ResourceProfiles but should be
     // close estimate
-    val tasks = shuffledOffers.map(o => new ArrayBuffer[TaskDescription](o.cores / CPUS_PER_TASK))
-    val availableResources = shuffledOffers.map(_.resources).toArray
-    val availableCpus = shuffledOffers.map(o => o.cores).toArray
-    val resourceProfileIds = shuffledOffers.map(o => o.resourceProfileId).toArray
+    var tasks = shuffledOffers.map(o => new ArrayBuffer[TaskDescription](o.cores / CPUS_PER_TASK))
+    var availableResources = shuffledOffers.map(_.resources).toArray
+    var availableCpus = shuffledOffers.map(o => o.cores).toArray
+    var resourceProfileIds = shuffledOffers.map(o => o.resourceProfileId).toArray
     val sortedTaskSets = rootPool.getSortedTaskSetQueue
     for (taskSet <- sortedTaskSets) {
       logDebug("parentName: %s, name: %s, runningTasks: %s".format(
@@ -550,6 +568,12 @@ private[spark] class TaskSchedulerImpl(
         taskSet.executorAdded()
       }
     }
+
+    var newTasks: IndexedSeq[ArrayBuffer[TaskDescription]] = IndexedSeq()
+
+    // if (conf.getBoolean("spark.scheduler.scaleout.enabled", false) == true) {
+    //  logInfo("[Custom] TaskSchedulerImpl::resourceOffers Offering " + offers.size + " executors to " + sortedTaskSets.size + " task sets")
+    // }
 
     // Take each TaskSet in our scheduling order, and then offer it to each node in increasing order
     // of locality levels so that it gets a chance to launch local tasks on all of them.
@@ -581,17 +605,78 @@ private[spark] class TaskSchedulerImpl(
         var launchedAnyTask = false
         var noDelaySchedulingRejects = true
         var globalMinLocality: Option[TaskLocality] = None
-        for (currentMaxLocality <- taskSet.myLocalityLevels) {
-          var launchedTaskAtCurrentMaxLocality = false
-          do {
-            val (noDelayScheduleReject, minLocality) = resourceOfferSingleTaskSet(
-              taskSet, currentMaxLocality, shuffledOffers, availableCpus,
-              availableResources, tasks)
-            launchedTaskAtCurrentMaxLocality = minLocality.isDefined
-            launchedAnyTask |= launchedTaskAtCurrentMaxLocality
-            noDelaySchedulingRejects &= noDelayScheduleReject
-            globalMinLocality = minTaskLocality(globalMinLocality, minLocality)
-          } while (launchedTaskAtCurrentMaxLocality)
+        var exsIds = filteredOffers.map(offer => offer.executorId).toArray
+        if (conf.getBoolean("spark.scheduler.scaleout.enabled", false) == true) {
+          var newOffers = IndexedSeq[WorkerOffer]()
+          var assignedExecutors = filteredOffers.filter(offer => taskSet.checkExecutorAssigned(offer.executorId))
+          val parReached = (taskSet.stageParallelism).get == taskSet.getNumExecutors()
+          val parNotReachedButAssigned = !parReached && assignedExecutors.size > 0
+          if (parReached || parNotReachedButAssigned) {
+            // logInfo("[Custom] TaskSchedulerImpl::resourceOffers Stage " + taskSet.stageId + " got already max number of executors (i.e., " + taskSet.getNumExecutors() + ")")
+            for (offer <- assignedExecutors) {
+                val freeTaskSlots: Int = offer.cores - getNumTasksExecutor("executor" + offer.executorId)*CPUS_PER_TASK
+                if (freeTaskSlots > 0) {
+                  // logInfo("[Custom] Executor " + offer.executorId + " has been assigned to Stage " + taskSet.stageId + ", since " + freeTaskSlots + " task slots are available consider it!")
+                  newOffers = newOffers :+ offer
+                }
+            }
+          }
+          var freeExecutors = filteredOffers.filter( offer => !isExecutorAssigned(offer.executorId))
+          // logInfo("Stage " + taskSet.stageId + " parallelism " + (taskSet.stageParallelism).get + " numExs " + taskSet.getNumExecutors() + " filteredOffers " + filteredOffers.map(_.executorId).toArray.mkString(" ") + " assignedExecutors " + assignedExecutors.map(_.executorId).toArray.mkString(" ") + " freeExecutors " + freeExecutors.map(_.executorId).toArray.mkString(" ") + " latestExecutorsIds is " + latestExecutorsIds.mkString(" ") + " newOffers " + newOffers.map(_.executorId).toArray.mkString(" "))
+          if (!parReached && freeExecutors.size > 0) {
+            newOffers = newOffers ++ freeExecutors.filter( offer => latestExecutorsIds contains offer.executorId )
+            val numMissingExs = (taskSet.stageParallelism).get - newOffers.size
+            if (numMissingExs > 0) {
+              var additionalOffers = freeExecutors.filter( offer => !(latestExecutorsIds contains offer.executorId))
+              newOffers = newOffers ++ additionalOffers.dropRight(additionalOffers.size - numMissingExs)
+            } else if (numMissingExs < 0) {
+              newOffers = newOffers.dropRight((numMissingExs).abs)
+            }
+            if (newOffers.size > 0) {
+              latestExecutorsIds = newOffers.map(_.executorId).toArray
+              for (execId <- latestExecutorsIds) {
+                taskSet.addExecutor(execId)
+                markExecutorAsAssigned(execId)
+              }
+            }
+            // logInfo("Stage " + taskSet.stageId + " parallelism " + (taskSet.stageParallelism).get + " numExs " + taskSet.getNumExecutors() + " latestExecutorsIds is " + latestExecutorsIds.mkString(" ") + " freeExecutors " + freeExecutors.map(_.executorId).toArray.mkString(" ") + " newOffers " + newOffers.map(_.executorId).toArray.mkString(" "))
+          }
+          var partialTasks = newOffers.map(o => new ArrayBuffer[TaskDescription](o.cores / CPUS_PER_TASK))
+          // tasks = newOffers.map(o => new ArrayBuffer[TaskDescription](o.cores / CPUS_PER_TASK))
+          availableResources = newOffers.map(_.resources).toArray
+          availableCpus = newOffers.map(o => o.cores).toArray
+          resourceProfileIds = newOffers.map(o => o.resourceProfileId).toArray
+          for (currentMaxLocality <- taskSet.myLocalityLevels) {
+            var launchedTaskAtCurrentMaxLocality = false
+            // logInfo("[Custom] TaskSchedulerImpl::resourceOffers Offering resources to task set for stage " + taskSet.stageId + " with " + taskSet.numTasks + " tasks (assignedExs = " + taskSet.getNumExecutors() + ")")
+            do {
+              val (noDelayScheduleReject, minLocality) = resourceOfferSingleTaskSet(
+                taskSet, currentMaxLocality, newOffers, availableCpus,
+                availableResources, partialTasks)
+              launchedTaskAtCurrentMaxLocality = minLocality.isDefined
+              launchedAnyTask |= launchedTaskAtCurrentMaxLocality
+              noDelaySchedulingRejects &= noDelayScheduleReject
+              globalMinLocality = minTaskLocality(globalMinLocality, minLocality)
+            } while (launchedTaskAtCurrentMaxLocality)
+          }
+          newTasks = newTasks ++ partialTasks
+        } else {
+          for (currentMaxLocality <- taskSet.myLocalityLevels) {
+            var launchedTaskAtCurrentMaxLocality = false
+            // logInfo("[Custom] TaskSchedulerImpl::resourceOffers Offering resources to task set for stage " + taskSet.stageId + " with " + taskSet.numTasks + " tasks (assignedExs = " + taskSet.getNumExecutors() + ")")
+            do {
+              val (noDelayScheduleReject, minLocality) = resourceOfferSingleTaskSet(
+                taskSet, currentMaxLocality, shuffledOffers, availableCpus,
+                availableResources, tasks)
+              launchedTaskAtCurrentMaxLocality = minLocality.isDefined
+              launchedAnyTask |= launchedTaskAtCurrentMaxLocality
+              noDelaySchedulingRejects &= noDelayScheduleReject
+              globalMinLocality = minTaskLocality(globalMinLocality, minLocality)
+            } while (launchedTaskAtCurrentMaxLocality)
+          }
+        }
+        if (conf.getBoolean("spark.scheduler.scaleout.enabled", false) == true) {
+          tasks = newTasks
         }
 
         if (!legacyLocalityWaitReset) {
@@ -785,6 +870,11 @@ private[spark] class TaskSchedulerImpl(
    */
   protected def shuffleOffers(offers: IndexedSeq[WorkerOffer]): IndexedSeq[WorkerOffer] = {
     Random.shuffle(offers)
+  }
+
+  def getTaskStage(tid: Long): Int = {
+    val taskSetManager = taskIdToTaskSetManager.get(tid)
+    taskSetManager.stageId
   }
 
   def statusUpdate(tid: Long, state: TaskState, serializedData: ByteBuffer): Unit = {
@@ -1095,6 +1185,30 @@ private[spark] class TaskSchedulerImpl(
   def isExecutorBusy(execId: String): Boolean = synchronized {
     executorIdToRunningTaskIds.get(execId).exists(_.nonEmpty)
   }
+
+  // IDs of the stages to which the executors are assigned
+  private var executorIdToStageId = mutable.Map[String, Boolean]()
+
+  def isExecutorAssigned(execId: String): Boolean = {
+    if (executorIdToStageId.get(execId) == None) {
+      false
+    } else {
+      executorIdToStageId.get(execId).get
+    }
+  }
+
+  def markExecutorAsAssigned(execId: String): Unit = synchronized {
+    if (executorIdToStageId.get(execId) == None) {
+      executorIdToStageId = executorIdToStageId + (execId -> true)
+    } else {
+      executorIdToStageId.update(execId, true)
+    }
+  }
+
+  def markExecutorAsFree(execId: String): Unit = synchronized {
+    executorIdToStageId.update(execId, false)
+  }
+
 
   // exposed for test
   protected final def isExecutorDecommissioned(execId: String): Boolean =

@@ -588,6 +588,7 @@ private[spark] class AppStatusStore(
       new v1.StageData(
         status = stage.status,
         stageId = stage.stageId,
+        stageKey = stage.stageKey,
         attemptId = stage.attemptId,
         numTasks = stage.numTasks,
         numActiveTasks = stage.numActiveTasks,

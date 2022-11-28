@@ -197,6 +197,7 @@ class JobData private[spark](
     val submissionTime: Option[Date],
     val completionTime: Option[Date],
     val stageIds: Seq[Int],
+    val stageKeys: Seq[Int],
     val jobGroup: Option[String],
     val status: JobExecutionStatus,
     val numTasks: Int,
@@ -247,6 +248,7 @@ class RDDPartitionInfo private[spark](
 class StageData private[spark](
     val status: StageStatus,
     val stageId: Int,
+    val stageKey: Int,
     val attemptId: Int,
     val numTasks: Int,
     val numActiveTasks: Int,

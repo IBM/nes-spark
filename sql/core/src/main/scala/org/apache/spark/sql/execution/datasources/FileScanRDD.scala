@@ -20,6 +20,7 @@ package org.apache.spark.sql.execution.datasources
 import java.io.{Closeable, FileNotFoundException, IOException}
 
 import scala.util.control.NonFatal
+import scala.util.hashing.MurmurHash3
 
 import org.apache.hadoop.fs.Path
 
@@ -74,6 +75,8 @@ class FileScanRDD(
 
   private val ignoreCorruptFiles = sparkSession.sessionState.conf.ignoreCorruptFiles
   private val ignoreMissingFiles = sparkSession.sessionState.conf.ignoreMissingFiles
+
+  override def key: Int = MurmurHash3.finalizeHash(MurmurHash3.listHash(List(filePartitions.map(fp => fp.files.map(f => f.start).mkString(",")).mkString(","), filePartitions.map(fp => fp.files.map(f => f.length).mkString(",")).mkString(","), MurmurHash3.stringHash(context.getCallSite().shortForm), MurmurHash3.stringHash(filePartitions.map(fp => fp.files.map(f => f.filePath).mkString(",")).mkString(","))), 0), 0)
 
   override def compute(split: RDDPartition, context: TaskContext): Iterator[InternalRow] = {
     val iterator = new Iterator[Object] with AutoCloseable {
@@ -218,7 +221,7 @@ class FileScanRDD(
         if (files.hasNext) {
           currentFile = files.next()
           updateMetadataRow()
-          logInfo(s"Reading File $currentFile")
+          // logInfo(s"Reading File $currentFile")
           // Sets InputFileBlockHolder for the file block's information
           InputFileBlockHolder.set(currentFile.filePath, currentFile.start, currentFile.length)
 

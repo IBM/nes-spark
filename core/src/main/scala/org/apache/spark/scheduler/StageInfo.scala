@@ -30,6 +30,7 @@ import org.apache.spark.storage.RDDInfo
 @DeveloperApi
 class StageInfo(
     val stageId: Int,
+    val stageKey: Int,
     private val attemptId: Int,
     val name: String,
     val numTasks: Int,
@@ -109,6 +110,7 @@ private[spark] object StageInfo {
     }
     new StageInfo(
       stage.id,
+      stage.key,
       attemptId,
       stage.name,
       numTasks.getOrElse(stage.numTasks),

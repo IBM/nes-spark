@@ -141,7 +141,7 @@ class BasicEventFilterBuilderSuite extends SparkFunSuite {
 
     // - Re-submit stage 1, all tasks, and succeed them and the stage.
     val oldS1 = stages.last
-    val newS1 = new StageInfo(oldS1.stageId, oldS1.attemptNumber + 1, oldS1.name, oldS1.numTasks,
+    val newS1 = new StageInfo(oldS1.stageId, oldS1.stageKey, oldS1.attemptNumber + 1, oldS1.name, oldS1.numTasks,
       oldS1.rddInfos, oldS1.parentIds, oldS1.details, oldS1.taskMetrics,
       resourceProfileId = ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID)
 

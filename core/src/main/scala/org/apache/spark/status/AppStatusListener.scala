@@ -456,6 +456,7 @@ private[spark] class AppStatusListener(
       description,
       if (event.time > 0) Some(new Date(event.time)) else None,
       event.stageIds,
+      event.stageKeys,
       jobGroup,
       numTasks,
       sqlExecutionId)

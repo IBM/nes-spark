@@ -822,7 +822,15 @@ class SparkContext(config: SparkConf) extends Logging {
       seq: Seq[T],
       numSlices: Int = defaultParallelism): RDD[T] = withScope {
     assertNotStopped()
-    new ParallelCollectionRDD[T](this, seq, numSlices, Map[Int, Seq[String]]())
+    new ParallelCollectionRDD[T](this, None, seq, numSlices, Map[Int, Seq[String]]())
+  }
+
+  def parallelizeWithKey[T: ClassTag](
+      uniqueKey: Int,
+      seq: Seq[T],
+      numSlices: Int = defaultParallelism): RDD[T] = withScope {
+    assertNotStopped()
+    new ParallelCollectionRDD[T](this, Option(uniqueKey), seq, numSlices, Map[Int, Seq[String]]())
   }
 
   /**
@@ -920,7 +928,7 @@ class SparkContext(config: SparkConf) extends Logging {
   def makeRDD[T: ClassTag](seq: Seq[(T, Seq[String])]): RDD[T] = withScope {
     assertNotStopped()
     val indexToPrefs = seq.zipWithIndex.map(t => (t._2, t._1._2)).toMap
-    new ParallelCollectionRDD[T](this, seq.map(_._1), math.max(seq.size, 1), indexToPrefs)
+    new ParallelCollectionRDD[T](this, None, seq.map(_._1), math.max(seq.size, 1), indexToPrefs)
   }
 
   /**

@@ -20,6 +20,7 @@ package org.apache.spark.util
 import java.io.FileNotFoundException
 
 import scala.collection.mutable
+import scala.util.hashing.MurmurHash3
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs._
@@ -104,6 +105,8 @@ private[spark] object HadoopFSUtils extends Logging {
     val serializableConfiguration = new SerializableConfiguration(hadoopConf)
     val serializedPaths = paths.map(_.toString)
 
+    val key = MurmurHash3.finalizeHash(MurmurHash3.stringHash(paths.mkString(",")), 0)
+
     // Set the number of parallelism to prevent following file listing from generating many tasks
     // in case of large #defaultParallelism.
     val numParallelism = Math.min(paths.size, parallelismMax)
@@ -120,7 +123,7 @@ private[spark] object HadoopFSUtils extends Logging {
       }
       sc.setJobDescription(description)
       sc
-        .parallelize(serializedPaths, numParallelism)
+        .parallelizeWithKey(key, serializedPaths, numParallelism)
         .mapPartitions { pathStrings =>
           val hadoopConf = serializableConfiguration.value
           pathStrings.map(new Path(_)).toSeq.map { path =>

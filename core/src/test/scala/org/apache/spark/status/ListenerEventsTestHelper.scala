@@ -50,19 +50,19 @@ object ListenerEventsTestHelper {
 
   def createRddsWithId(ids: Seq[Int]): Seq[RDDInfo] = {
     ids.map { rddId =>
-      new RDDInfo(rddId, s"rdd${rddId}", 2, StorageLevel.NONE, false, Nil)
+      new RDDInfo(rddId, 0, s"rdd${rddId}", 2, StorageLevel.NONE, false, Nil)
     }
   }
 
   def createRdds(count: Int): Seq[RDDInfo] = {
     (1 to count).map { _ =>
       val rddId = nextRddId()
-      new RDDInfo(rddId, s"rdd${rddId}", 2, StorageLevel.NONE, false, Nil)
+      new RDDInfo(rddId, 0, s"rdd${rddId}", 2, StorageLevel.NONE, false, Nil)
     }
   }
 
   def createStage(id: Int, rdds: Seq[RDDInfo], parentIds: Seq[Int]): StageInfo = {
-    new StageInfo(id, 0, s"stage${id}", 4, rdds, parentIds, s"details${id}",
+    new StageInfo(id, 0, 0, s"stage${id}", 4, rdds, parentIds, s"details${id}",
       resourceProfileId = ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID)
   }
 
@@ -98,14 +98,14 @@ object ListenerEventsTestHelper {
 
   /** Create a stage submitted event for the specified stage Id. */
   def createStageSubmittedEvent(stageId: Int): SparkListenerStageSubmitted = {
-    SparkListenerStageSubmitted(new StageInfo(stageId, 0, stageId.toString, 0,
+    SparkListenerStageSubmitted(new StageInfo(stageId, 0, 0, stageId.toString, 0,
       Seq.empty, Seq.empty, "details",
       resourceProfileId = ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID))
   }
 
   /** Create a stage completed event for the specified stage Id. */
   def createStageCompletedEvent(stageId: Int): SparkListenerStageCompleted = {
-    SparkListenerStageCompleted(new StageInfo(stageId, 0, stageId.toString, 0,
+    SparkListenerStageCompleted(new StageInfo(stageId, 0, 0, stageId.toString, 0,
       Seq.empty, Seq.empty, "details",
       resourceProfileId = ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID))
   }

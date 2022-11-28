@@ -26,6 +26,7 @@ import scala.language.implicitConversions
 import scala.ref.WeakReference
 import scala.reflect.{classTag, ClassTag}
 import scala.util.hashing
+import scala.util.hashing.{MurmurHash3}
 
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus
 import org.apache.hadoop.io.{BytesWritable, NullWritable, Text}
@@ -155,6 +156,8 @@ abstract class RDD[T: ClassTag](
     name = _name
     this
   }
+
+  def key : Int = MurmurHash3.finalizeHash(MurmurHash3.listHash(scopeName :: MurmurHash3.stringHash(context.getCallSite().shortForm) :: dependencies.map(d => d.rdd.key).toList, 0), 0)
 
   /**
    * Mark this RDD for persisting using the specified level.
@@ -1837,6 +1840,12 @@ abstract class RDD[T: ClassTag](
    */
   @transient private[spark] val scope: Option[RDDOperationScope] = {
     Option(sc.getLocalProperty(SparkContext.RDD_SCOPE_KEY)).map(RDDOperationScope.fromJson)
+  }
+
+  @transient private[spark] val scopeName: String = {
+    val out = scope.map(_.toJson).getOrElse("")
+    val name = if (out != "") out.split("name")(1) else ""
+    name
   }
 
   private[spark] def getCreationSite: String = Option(creationSite).map(_.shortForm).getOrElse("")

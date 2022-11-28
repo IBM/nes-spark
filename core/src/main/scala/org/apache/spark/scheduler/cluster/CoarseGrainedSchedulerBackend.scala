@@ -40,6 +40,7 @@ import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages._
 import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend.ENDPOINT_NAME
 import org.apache.spark.util.{RpcUtils, SerializableBuffer, ThreadUtils, Utils}
+import org.apache.spark.util.{SystemClock}
 
 /**
  * A scheduler backend that waits for coarse-grained executors to connect.
@@ -147,6 +148,8 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
     override def receive: PartialFunction[Any, Unit] = {
       case StatusUpdate(executorId, taskId, state, data, resources) =>
+        val taskStage = scheduler.getTaskStage(taskId)
+        logInfo("[Custom] At " + System.currentTimeMillis() + " taskId " + taskId + " of stage " + taskStage + " executor " + executorId + " state " + state)
         scheduler.statusUpdate(taskId, state, data.value)
         if (TaskState.isFinished(state)) {
           executorDataMap.get(executorId) match {
@@ -349,6 +352,9 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
     // Make fake resource offers on just one executor
     private def makeOffers(executorId: String): Unit = {
+      // if (conf.getBoolean("spark.scheduler.scaleout.enabled", false) == true) {
+      //  logInfo(s"[Custom] CoarseGrainedSchedulerBackend::makeOffers(executor ${executorId}) begin")
+      // }
       // Make sure no executor is killed while some task is launching on it
       val taskDescs = withLock {
         // Filter out executors under killing
@@ -368,6 +374,9 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
       if (taskDescs.nonEmpty) {
         launchTasks(taskDescs)
       }
+      // if (conf.getBoolean("spark.scheduler.scaleout.enabled", false) == true) {
+      //  logInfo(s"[Custom] CoarseGrainedSchedulerBackend::makeOffers(${executorId}) end")
+      // }
     }
 
     // Launch tasks returned by a set of resource offers
@@ -402,7 +411,9 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
           logDebug(s"Launching task ${task.taskId} on executor id: ${task.executorId} hostname: " +
             s"${executorData.executorHost}.")
-
+          // if (conf.getBoolean("spark.scheduler.scaleout.enabled", false) == true) {
+          //   logInfo("[Custom] Launching task " + task.name + " (" + task.taskId + "/" + task.index + ") on executor " + task.executorId)
+          // }
           executorData.executorEndpoint.send(LaunchTask(new SerializableBuffer(serializedTask)))
         }
       }
@@ -583,7 +594,9 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
   def stopExecutors(): Unit = {
     try {
       if (driverEndpoint != null) {
-        logInfo("Shutting down all executors")
+        var clock = new SystemClock()
+        var now = clock.getTimeMillis()
+        logInfo(s"Shutting down all executors at timestamp ${now}")
         driverEndpoint.askSync[Boolean](StopExecutors)
       }
     } catch {

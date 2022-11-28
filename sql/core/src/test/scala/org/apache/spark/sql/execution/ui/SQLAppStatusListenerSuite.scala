@@ -91,8 +91,9 @@ class SQLAppStatusListenerSuite extends SharedSparkSession with JsonTestUtils
     properties
   }
 
-  private def createStageInfo(stageId: Int, attemptId: Int): StageInfo = {
+  private def createStageInfo(stageId: Int, stageKey: Int, attemptId: Int): StageInfo = {
     new StageInfo(stageId = stageId,
+      stageKey = stageKey,
       attemptId = attemptId,
       numTasks = 8,
       // The following fields are not used in tests
@@ -206,11 +207,11 @@ class SQLAppStatusListenerSuite extends SharedSparkSession with JsonTestUtils
       jobId = 0,
       time = System.currentTimeMillis(),
       stageInfos = Seq(
-        createStageInfo(0, 0),
-        createStageInfo(1, 0)
+        createStageInfo(0, 0, 0),
+        createStageInfo(1, 1, 0)
       ),
       createProperties(executionId)))
-    listener.onStageSubmitted(SparkListenerStageSubmitted(createStageInfo(0, 0)))
+    listener.onStageSubmitted(SparkListenerStageSubmitted(createStageInfo(0, 0, 0)))
     listener.onTaskStart(SparkListenerTaskStart(0, 0, createTaskInfo(0, 0)))
     listener.onTaskStart(SparkListenerTaskStart(0, 0, createTaskInfo(1, 0)))
 
@@ -242,7 +243,7 @@ class SQLAppStatusListenerSuite extends SharedSparkSession with JsonTestUtils
       accumulatorUpdates.mapValues(_ * 3).toMap)
 
     // Retrying a stage should reset the metrics
-    listener.onStageSubmitted(SparkListenerStageSubmitted(createStageInfo(0, 1)))
+    listener.onStageSubmitted(SparkListenerStageSubmitted(createStageInfo(0, 0, 1)))
     listener.onTaskStart(SparkListenerTaskStart(0, 1, createTaskInfo(0, 0)))
     listener.onTaskStart(SparkListenerTaskStart(0, 1, createTaskInfo(1, 0)))
 
@@ -290,7 +291,7 @@ class SQLAppStatusListenerSuite extends SharedSparkSession with JsonTestUtils
       accumulatorUpdates.mapValues(_ * 5).toMap)
 
     // Summit a new stage
-    listener.onStageSubmitted(SparkListenerStageSubmitted(createStageInfo(1, 0)))
+    listener.onStageSubmitted(SparkListenerStageSubmitted(createStageInfo(1, 1, 0)))
     listener.onTaskStart(SparkListenerTaskStart(1, 0, createTaskInfo(0, 0)))
     listener.onTaskStart(SparkListenerTaskStart(1, 0, createTaskInfo(1, 0)))
 
@@ -497,9 +498,9 @@ class SQLAppStatusListenerSuite extends SharedSparkSession with JsonTestUtils
     listener.onJobStart(SparkListenerJobStart(
       jobId = 0,
       time = System.currentTimeMillis(),
-      stageInfos = Seq(createStageInfo(0, 0)),
+      stageInfos = Seq(createStageInfo(0, 0, 0)),
       createProperties(executionId)))
-    listener.onStageSubmitted(SparkListenerStageSubmitted(createStageInfo(0, 0)))
+    listener.onStageSubmitted(SparkListenerStageSubmitted(createStageInfo(0, 0, 0)))
     listener.onJobEnd(SparkListenerJobEnd(
       jobId = 0,
       time = System.currentTimeMillis(),
@@ -526,7 +527,7 @@ class SQLAppStatusListenerSuite extends SharedSparkSession with JsonTestUtils
 
     var stageId = 0
     def twoStageJob(jobId: Int): Unit = {
-      val stages = Seq(stageId, stageId + 1).map { id => createStageInfo(id, 0)}
+      val stages = Seq(stageId, stageId + 1).map { id => createStageInfo(id, 0, 0)}
       stageId += 2
       listener.onJobStart(SparkListenerJobStart(
         jobId = jobId,
@@ -729,10 +730,10 @@ class SQLAppStatusListenerSuite extends SharedSparkSession with JsonTestUtils
     listener.onJobStart(SparkListenerJobStart(
       jobId = 0,
       time = System.currentTimeMillis(),
-      stageInfos = Seq(createStageInfo(0, 0)),
+      stageInfos = Seq(createStageInfo(0, 0, 0)),
       createProperties(executionId)))
 
-    listener.onStageSubmitted(SparkListenerStageSubmitted(createStageInfo(0, 0)))
+    listener.onStageSubmitted(SparkListenerStageSubmitted(createStageInfo(0, 0, 0)))
     listener.onTaskStart(SparkListenerTaskStart(0, 0, createTaskInfo(0, 0)))
 
     assert(statusStore.executionMetrics(executionId).isEmpty)
@@ -758,7 +759,7 @@ class SQLAppStatusListenerSuite extends SharedSparkSession with JsonTestUtils
       new ExecutorMetrics,
       null))
 
-    listener.onStageCompleted(SparkListenerStageCompleted(createStageInfo(0, 0)))
+    listener.onStageCompleted(SparkListenerStageCompleted(createStageInfo(0, 0, 0)))
 
     listener.onJobEnd(SparkListenerJobEnd(
       jobId = 0,
@@ -786,10 +787,10 @@ class SQLAppStatusListenerSuite extends SharedSparkSession with JsonTestUtils
     listener.onJobStart(SparkListenerJobStart(
       jobId = 1,
       time = System.currentTimeMillis(),
-      stageInfos = Seq(createStageInfo(1, 0)),
+      stageInfos = Seq(createStageInfo(1, 1, 0)),
       createProperties(executionId)))
 
-    listener.onStageSubmitted(SparkListenerStageSubmitted(createStageInfo(1, 0)))
+    listener.onStageSubmitted(SparkListenerStageSubmitted(createStageInfo(1, 1, 0)))
     listener.onTaskStart(SparkListenerTaskStart(1, 0, createTaskInfo(0, 0)))
 
     // historical metrics will be kept despite of the newPlan updated.
@@ -816,7 +817,7 @@ class SQLAppStatusListenerSuite extends SharedSparkSession with JsonTestUtils
       new ExecutorMetrics,
       null))
 
-    listener.onStageCompleted(SparkListenerStageCompleted(createStageInfo(1, 0)))
+    listener.onStageCompleted(SparkListenerStageCompleted(createStageInfo(1, 1, 0)))
 
     listener.onJobEnd(SparkListenerJobEnd(
       jobId = 1,

@@ -79,6 +79,24 @@ private[spark] class TaskSetManager(
   val numTasks = tasks.length
   val copiesRunning = new Array[Int](numTasks)
 
+  var stageParallelism = taskSet.stageParallelism
+
+  var executorsIds: Array[String] = Array()
+
+  def addExecutor(execId: String): Unit = {
+    if ( executorsIds.contains(execId) == false ) {
+      executorsIds :+= execId
+    }
+  }
+
+  def getNumExecutors(): Int = {
+    executorsIds.length
+  }
+
+  def checkExecutorAssigned(execId: String): Boolean = {
+    executorsIds.contains(execId)
+  }
+
   val speculationEnabled = conf.get(SPECULATION_ENABLED)
   // Quantile of tasks at which to start speculation
   val speculationQuantile = conf.get(SPECULATION_QUANTILE)
@@ -539,9 +557,11 @@ private[spark] class TaskSetManager(
     // a good proxy to task serialization time.
     // val timeTaken = clock.getTime() - startTime
     val tName = taskName(taskId)
-    logInfo(s"Starting $tName ($host, executor ${info.executorId}, " +
-      s"partition ${task.partitionId}, $taskLocality, ${serializedTask.limit()} bytes) " +
-      s"taskResourceAssignments ${taskResourceAssignments}")
+    // def stack_trace = new Exception("Stack trace").printStackTrace()
+    // logInfo(s"$stack_trace")
+    // logInfo(s"Starting $tName ($host, executor ${info.executorId}, " +
+    //  s"partition ${task.partitionId}, $taskLocality, ${serializedTask.limit()} bytes) " +
+    //  s"taskResourceAssignments ${taskResourceAssignments}")
 
     sched.dagScheduler.taskStarted(task, info)
     new TaskDescription(
@@ -817,8 +837,8 @@ private[spark] class TaskSetManager(
     }
     if (!successful(index)) {
       tasksSuccessful += 1
-      logInfo(s"Finished ${taskName(info.taskId)} in ${info.duration} ms " +
-        s"on ${info.host} (executor ${info.executorId}) ($tasksSuccessful/$numTasks)")
+      // logInfo(s"Finished ${taskName(info.taskId)} in ${info.duration} ms " +
+      //   s"on ${info.host} (executor ${info.executorId}) ($tasksSuccessful/$numTasks)")
       // Mark successful and stop if all the tasks have succeeded.
       successful(index) = true
       numFailures(index) = 0

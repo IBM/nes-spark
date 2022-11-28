@@ -75,7 +75,7 @@ class SparkStatusTracker private[spark] (sc: SparkContext, store: AppStatusStore
    */
   def getJobInfo(jobId: Int): Option[SparkJobInfo] = {
     store.asOption(store.job(jobId)).map { job =>
-      new SparkJobInfoImpl(jobId, job.stageIds.toArray, job.status)
+      new SparkJobInfoImpl(jobId, job.stageIds.toArray, job.stageKeys.toArray, job.status)
     }
   }
 

@@ -124,7 +124,7 @@ class HealthTrackerIntegrationSuite extends SchedulerIntegrationSuite[MultiExecu
   }
 }
 
-class MultiExecutorMockBackend(
+abstract class MultiExecutorMockBackend(
     conf: SparkConf,
     taskScheduler: TaskSchedulerImpl) extends MockBackend(conf, taskScheduler) {
 

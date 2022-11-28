@@ -65,6 +65,7 @@ private class LiveJob(
     description: Option[String],
     val submissionTime: Option[Date],
     val stageIds: Seq[Int],
+    val stageKeys: Seq[Int],
     jobGroup: Option[String],
     numTasks: Int,
     sqlExecutionId: Option[Long]) extends LiveEntity {
@@ -97,6 +98,7 @@ private class LiveJob(
       submissionTime,
       completionTime,
       stageIds,
+      stageKeys,
       jobGroup,
       status,
       numTasks,
@@ -465,6 +467,7 @@ private class LiveStage(var info: StageInfo) extends LiveEntity {
     new v1.StageData(
       status = status,
       stageId = info.stageId,
+      stageKey = info.stageKey,
       attemptId = info.attemptNumber,
       numTasks = info.numTasks,
       numActiveTasks = activeTasks,

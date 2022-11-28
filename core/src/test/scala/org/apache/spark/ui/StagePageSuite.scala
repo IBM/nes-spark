@@ -43,6 +43,7 @@ class StagePageSuite extends SparkFunSuite with LocalSparkContext {
       val stageData = new StageData(
         status = StageStatus.ACTIVE,
         stageId = 1,
+        stageKey = 1,
         attemptId = 1,
         numTasks = 1,
         numActiveTasks = 1,
@@ -135,7 +136,7 @@ class StagePageSuite extends SparkFunSuite with LocalSparkContext {
       val page = new StagePage(tab, statusStore)
 
       // Simulate a stage in job progress listener
-      val stageInfo = new StageInfo(0, 0, "dummy", 1, Seq.empty, Seq.empty, "details",
+      val stageInfo = new StageInfo(0, 0, 0, "dummy", 1, Seq.empty, Seq.empty, "details",
         resourceProfileId = ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID)
       // Simulate two tasks to test PEAK_EXECUTION_MEMORY correctness
       (1 to 2).foreach {

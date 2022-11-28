@@ -91,7 +91,7 @@ object MetricsAggregationBenchmark extends BenchmarkBase {
     listener.onOtherEvent(executionStart)
 
     val taskEventsTime = (0 until numStages).map { _ =>
-      val stageInfo = new StageInfo(idgen.incrementAndGet(), 0, getClass().getName(),
+      val stageInfo = new StageInfo(idgen.incrementAndGet(), 0, 0, getClass().getName(),
         numTasks, Nil, Nil, getClass().getName(),
         resourceProfileId = ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID)
 

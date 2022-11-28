@@ -482,7 +482,7 @@ class ExecutorMonitorSuite extends SparkFunSuite {
   private def shuffleDeadline: Long = clock.nanoTime() + shuffleTimeoutNs + 1
 
   private def stageInfo(id: Int, shuffleId: Int = -1): StageInfo = {
-    new StageInfo(id, 0, s"stage$id", 1, Nil, Nil, "",
+    new StageInfo(id, 0, 0, s"stage$id", 1, Nil, Nil, "",
       shuffleDepId = if (shuffleId >= 0) Some(shuffleId) else None,
       resourceProfileId = ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID)
   }

@@ -240,6 +240,7 @@ private[ui] class JobPage(parent: JobsTab, store: AppStatusStore) extends WebUIP
         new v1.StageData(
           status = v1.StageStatus.PENDING,
           stageId = stageId,
+          stageKey = 0,
           attemptId = 0,
           numTasks = 0,
           numActiveTasks = 0,

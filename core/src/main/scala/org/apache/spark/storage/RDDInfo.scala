@@ -26,6 +26,7 @@ import org.apache.spark.util.Utils
 @DeveloperApi
 class RDDInfo(
     val id: Int,
+    val key: Int,
     var name: String,
     val numPartitions: Int,
     var storageLevel: StorageLevel,
@@ -68,7 +69,7 @@ private[spark] object RDDInfo {
     } else {
       rdd.creationSite.shortForm
     }
-    new RDDInfo(rdd.id, rddName, rdd.partitions.length,
+    new RDDInfo(rdd.id, rdd.key, rddName, rdd.partitions.length,
       rdd.getStorageLevel, rdd.isBarrier(), parentIds, callSite, rdd.scope,
       rdd.outputDeterministicLevel)
   }

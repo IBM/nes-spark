@@ -55,7 +55,7 @@ case class CollectLimitExec(limit: Int, child: SparkPlan) extends LimitExec {
   protected override def doExecute(): RDD[InternalRow] = {
     val childRDD = child.execute()
     if (childRDD.getNumPartitions == 0) {
-      new ParallelCollectionRDD(sparkContext, Seq.empty[InternalRow], 1, Map.empty)
+      new ParallelCollectionRDD(sparkContext, None, Seq.empty[InternalRow], 1, Map.empty)
     } else {
       val singlePartitionRDD = if (childRDD.getNumPartitions == 1) {
         childRDD
@@ -222,7 +222,7 @@ case class TakeOrderedAndProjectExec(
     val ord = new LazilyGeneratedOrdering(sortOrder, child.output)
     val childRDD = child.execute()
     if (childRDD.getNumPartitions == 0) {
-      new ParallelCollectionRDD(sparkContext, Seq.empty[InternalRow], 1, Map.empty)
+      new ParallelCollectionRDD(sparkContext, None, Seq.empty[InternalRow], 1, Map.empty)
     } else {
       val singlePartitionRDD = if (childRDD.getNumPartitions == 1) {
         childRDD

@@ -73,7 +73,7 @@ object FakeTask {
     val tasks = Array.tabulate[Task[_]](numTasks) { i =>
       new FakeTask(stageId, i, if (prefLocs.size != 0) prefLocs(i) else Nil)
     }
-    new TaskSet(tasks, stageId, stageAttemptId, priority = priority, null, rpId)
+    new TaskSet(tasks, stageId, Some(1), stageAttemptId, priority = priority, null, rpId)
   }
 
   def createShuffleMapTaskSet(
@@ -99,7 +99,7 @@ object FakeTask {
       }, prefLocs(i), new Properties,
         SparkEnv.get.closureSerializer.newInstance().serialize(TaskMetrics.registered).array())
     }
-    new TaskSet(tasks, stageId, stageAttemptId, priority = priority, null,
+    new TaskSet(tasks, stageId, Some(1), stageAttemptId, priority = priority, null,
       ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID)
   }
 
@@ -129,6 +129,6 @@ object FakeTask {
     val tasks = Array.tabulate[Task[_]](numTasks) { i =>
       new FakeTask(stageId, i, if (prefLocs.size != 0) prefLocs(i) else Nil, isBarrier = true)
     }
-    new TaskSet(tasks, stageId, stageAttemptId, priority = priority, null, rpId)
+    new TaskSet(tasks, stageId, Some(1), stageAttemptId, priority = priority, null, rpId)
   }
 }

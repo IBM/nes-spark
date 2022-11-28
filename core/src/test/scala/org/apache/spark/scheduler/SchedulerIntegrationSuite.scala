@@ -435,7 +435,7 @@ private[spark] abstract class MockBackend(
 /**
  * A very simple mock backend that can just run one task at a time.
  */
-private[spark] class SingleCoreMockBackend(
+private[spark] abstract class SingleCoreMockBackend(
   conf: SparkConf,
   taskScheduler: TaskSchedulerImpl) extends MockBackend(conf, taskScheduler) {
 

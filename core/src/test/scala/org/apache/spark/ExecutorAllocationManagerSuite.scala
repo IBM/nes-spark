@@ -120,7 +120,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
 
   test("add executors default profile") {
     val manager = createManager(createConf(1, 10, 1))
-    post(SparkListenerStageSubmitted(createStageInfo(0, 1000)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 1000)))
 
     val updatesNeeded =
       new mutable.HashMap[ResourceProfile, ExecutorAllocationManager.TargetNumUpdates]
@@ -175,14 +175,14 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
 
   test("add executors multiple profiles") {
     val manager = createManager(createConf(1, 10, 1))
-    post(SparkListenerStageSubmitted(createStageInfo(0, 1000, rp = defaultProfile)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 1000, rp = defaultProfile)))
     val rp1 = new ResourceProfileBuilder()
     val execReqs = new ExecutorResourceRequests().cores(4).resource("gpu", 4)
     val taskReqs = new TaskResourceRequests().cpus(1).resource("gpu", 1)
     rp1.require(execReqs).require(taskReqs)
     val rprof1 = rp1.build
     rpManager.addResourceProfile(rprof1)
-    post(SparkListenerStageSubmitted(createStageInfo(1, 1000, rp = rprof1)))
+    post(SparkListenerStageSubmitted(createStageInfo(1, 1, 1000, rp = rprof1)))
     val updatesNeeded =
       new mutable.HashMap[ResourceProfile, ExecutorAllocationManager.TargetNumUpdates]
 
@@ -280,7 +280,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     val rprof1 = rp1.build
     rpManager.addResourceProfile(rprof1)
     when(client.requestTotalExecutors(any(), any(), any())).thenReturn(true)
-    post(SparkListenerStageSubmitted(createStageInfo(1, 4, rp = rprof1)))
+    post(SparkListenerStageSubmitted(createStageInfo(1, 1, 4, rp = rprof1)))
     // called once on start and a second time on stage submit with initial number
     verify(client, times(2)).requestTotalExecutors(any(), any(), any())
     assert(numExecutorsTarget(manager, rprof1.id) === 2)
@@ -300,8 +300,8 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     val rprof2 = rp2.build
     rpManager.addResourceProfile(rprof1)
     rpManager.addResourceProfile(rprof2)
-    post(SparkListenerStageSubmitted(createStageInfo(1, 10, rp = rprof1)))
-    post(SparkListenerStageSubmitted(createStageInfo(2, 10, rp = rprof2)))
+    post(SparkListenerStageSubmitted(createStageInfo(1, 1, 10, rp = rprof1)))
+    post(SparkListenerStageSubmitted(createStageInfo(2, 2, 10, rp = rprof2)))
 
     (1 to 10).map(_.toString).foreach { id => onExecutorAdded(manager, id, rprof1) }
     (11 to 20).map(_.toString).foreach { id => onExecutorAdded(manager, id, rprof2) }
@@ -378,7 +378,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
       .set(config.DYN_ALLOCATION_EXECUTOR_ALLOCATION_RATIO, divisor)
       .set(config.EXECUTOR_CORES, cores)
     val manager = createManager(conf)
-    post(SparkListenerStageSubmitted(createStageInfo(0, 20)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 20)))
     for (i <- 0 to 5) {
       addExecutorsToTargetForDefaultProfile(manager, updatesNeeded)
       doUpdateRequest(manager, updatesNeeded.toMap, clock.getTimeMillis())
@@ -400,7 +400,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
 
   test("add executors capped by num pending tasks") {
     val manager = createManager(createConf(0, 10, 0))
-    post(SparkListenerStageSubmitted(createStageInfo(0, 5)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 5)))
 
     val updatesNeeded =
       new mutable.HashMap[ResourceProfile, ExecutorAllocationManager.TargetNumUpdates]
@@ -422,7 +422,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     assert(numExecutorsToAddForDefaultProfile(manager) === 1)
 
     // Verify that running a task doesn't affect the target
-    post(SparkListenerStageSubmitted(createStageInfo(1, 3)))
+    post(SparkListenerStageSubmitted(createStageInfo(1, 1, 3)))
     post(SparkListenerExecutorAdded(
       0L, "executor-1", new ExecutorInfo("host1", 1, Map.empty, Map.empty)))
     post(SparkListenerTaskStart(1, 0, createTaskInfo(0, 0, "executor-1")))
@@ -442,7 +442,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     assert(numExecutorsToAddForDefaultProfile(manager) === 1)
 
     // Verify that re-running a task doesn't blow things up
-    post(SparkListenerStageSubmitted(createStageInfo(2, 3)))
+    post(SparkListenerStageSubmitted(createStageInfo(2, 2, 3)))
     post(SparkListenerTaskStart(2, 0, createTaskInfo(0, 0, "executor-1")))
     post(SparkListenerTaskStart(2, 0, createTaskInfo(1, 0, "executor-1")))
     assert(addExecutorsToTargetForDefaultProfile(manager, updatesNeeded) === 1)
@@ -467,7 +467,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     val updatesNeeded =
       new mutable.HashMap[ResourceProfile, ExecutorAllocationManager.TargetNumUpdates]
 
-    post(SparkListenerStageSubmitted(createStageInfo(1, 2)))
+    post(SparkListenerStageSubmitted(createStageInfo(1, 1, 2)))
     // Verify that we're capped at number of tasks including the speculative ones in the stage
     post(SparkListenerSpeculativeTaskSubmitted(1))
     assert(numExecutorsTargetForDefaultProfileId(manager) === 0)
@@ -509,7 +509,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     val updatesNeeded =
       new mutable.HashMap[ResourceProfile, ExecutorAllocationManager.TargetNumUpdates]
 
-    post(SparkListenerStageSubmitted(createStageInfo(0, 2)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 2)))
 
     assert(addExecutorsToTargetForDefaultProfile(manager, updatesNeeded) === 1)
     doUpdateRequest(manager, updatesNeeded.toMap, clock.getTimeMillis())
@@ -549,9 +549,9 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     val updatesNeeded =
       new mutable.HashMap[ResourceProfile, ExecutorAllocationManager.TargetNumUpdates]
 
-    post(SparkListenerStageSubmitted(createStageInfo(0, 2)))
-    post(SparkListenerStageSubmitted(createStageInfo(1, 2)))
-    post(SparkListenerStageSubmitted(createStageInfo(2, 2)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 2)))
+    post(SparkListenerStageSubmitted(createStageInfo(1, 1, 2)))
+    post(SparkListenerStageSubmitted(createStageInfo(2, 2, 2)))
 
     assert(addExecutorsToTargetForDefaultProfile(manager, updatesNeeded) === 1)
     doUpdateRequest(manager, updatesNeeded.toMap, clock.getTimeMillis())
@@ -578,7 +578,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     val t2Info = createTaskInfo(1, 1, executorId = s"0")
     post(SparkListenerTaskEnd(0, 0, null, Success, t1Info, new ExecutorMetrics, null))
     post(SparkListenerTaskEnd(0, 0, null, Success, t2Info, new ExecutorMetrics, null))
-    post(SparkListenerStageCompleted(createStageInfo(0, 2)))
+    post(SparkListenerStageCompleted(createStageInfo(0, 0, 2)))
 
     // Stage 1 and 2 becomes unschedulable now due to excludeOnFailure
     post(SparkListenerUnschedulableTaskSetAdded(1, 0))
@@ -603,7 +603,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
 
   test("SPARK-31418: remove executors after unschedulable tasks end") {
     val clock = new ManualClock()
-    val stage = createStageInfo(0, 10)
+    val stage = createStageInfo(0, 0, 10)
     val conf = createConf(0, 6, 0).set(config.EXECUTOR_CORES, 2)
     val manager = createManager(conf, clock = clock)
     val updatesNeeded =
@@ -673,7 +673,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
 
   test("SPARK-30511 remove executors when speculative tasks end") {
     val clock = new ManualClock()
-    val stage = createStageInfo(0, 40)
+    val stage = createStageInfo(0, 0, 40)
     val conf = createConf(0, 10, 0).set(config.EXECUTOR_CORES, 4)
     val manager = createManager(conf, clock = clock)
     val updatesNeeded =
@@ -823,7 +823,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     // that stage is started, and we get task completions from the first stage attempt.  Make sure
     // the value of `totalTasksRunning` is consistent as tasks finish from both attempts (we count
     // all running tasks, from the zombie & non-zombie attempts)
-    val stage = createStageInfo(0, 5)
+    val stage = createStageInfo(0, 0, 5)
     post(SparkListenerStageSubmitted(stage))
     val taskInfo1 = createTaskInfo(0, 0, "executor-1")
     val taskInfo2 = createTaskInfo(1, 1, "executor-1")
@@ -837,7 +837,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     assert(totalRunningTasksPerResourceProfile(manager) === 2)
 
     // submit another attempt for the stage.  We count completions from the first zombie attempt
-    val stageAttempt1 = createStageInfo(stage.stageId, 5, attemptId = 1)
+    val stageAttempt1 = createStageInfo(stage.stageId, stage.stageKey, 5, attemptId = 1)
     post(SparkListenerStageSubmitted(stageAttempt1))
     post(SparkListenerTaskEnd(0, 0, null, Success, taskInfo1, new ExecutorMetrics, null))
     assert(totalRunningTasksPerResourceProfile(manager) === 1)
@@ -856,7 +856,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
 
   testRetry("cancel pending executors when no longer needed") {
     val manager = createManager(createConf(0, 10, 0))
-    post(SparkListenerStageSubmitted(createStageInfo(2, 5)))
+    post(SparkListenerStageSubmitted(createStageInfo(2, 2, 5)))
 
     val updatesNeeded =
       new mutable.HashMap[ResourceProfile, ExecutorAllocationManager.TargetNumUpdates]
@@ -1032,7 +1032,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
   test ("Removing with various numExecutorsTargetForDefaultProfileId condition") {
     val manager = createManager(createConf(5, 12, 5))
 
-    post(SparkListenerStageSubmitted(createStageInfo(0, 8)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 8)))
 
     val updatesNeeded =
       new mutable.HashMap[ResourceProfile, ExecutorAllocationManager.TargetNumUpdates]
@@ -1082,7 +1082,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     // in order to avoid unexpected update of target executors
     val clock = new ManualClock()
     val manager = createManager(createConf(5, 12, 5), clock)
-    post(SparkListenerStageSubmitted(createStageInfo(0, 1000)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 1000)))
 
     val updatesNeeded =
       new mutable.HashMap[ResourceProfile, ExecutorAllocationManager.TargetNumUpdates]
@@ -1216,7 +1216,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
   test("mock polling loop add behavior") {
     val clock = new ManualClock(2020L)
     val manager = createManager(createConf(0, 20, 0), clock = clock)
-    post(SparkListenerStageSubmitted(createStageInfo(0, 1000)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 1000)))
 
     // Scheduler queue backlogged
     onSchedulerBacklogged(manager)
@@ -1386,7 +1386,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
 
     // Starting a stage should start the add timer
     val numTasks = 10
-    post(SparkListenerStageSubmitted(createStageInfo(0, numTasks)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, numTasks)))
     assert(addTime(manager) !== NOT_SET)
 
     // Starting a subset of the tasks should not cancel the add timer
@@ -1400,8 +1400,8 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
 
     // Start two different stages
     // The add timer should be canceled only if all tasks in both stages start running
-    post(SparkListenerStageSubmitted(createStageInfo(1, numTasks)))
-    post(SparkListenerStageSubmitted(createStageInfo(2, numTasks)))
+    post(SparkListenerStageSubmitted(createStageInfo(1, 1, numTasks)))
+    post(SparkListenerStageSubmitted(createStageInfo(2, 2, numTasks)))
     assert(addTime(manager) !== NOT_SET)
     taskInfos.foreach { info => post(SparkListenerTaskStart(1, 0, info)) }
     assert(addTime(manager) !== NOT_SET)
@@ -1411,7 +1411,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
 
   test("avoid ramp up when target < running executors") {
     val manager = createManager(createConf(0, 100000, 0))
-    val stage1 = createStageInfo(0, 1000)
+    val stage1 = createStageInfo(0, 0, 1000)
     post(SparkListenerStageSubmitted(stage1))
 
     val updatesNeeded =
@@ -1435,7 +1435,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     adjustRequestedExecutors(manager)
     assert(numExecutorsTargetForDefaultProfileId(manager) === 0)
 
-    post(SparkListenerStageSubmitted(createStageInfo(1, 1000)))
+    post(SparkListenerStageSubmitted(createStageInfo(1, 1, 1000)))
     addExecutorsToTargetForDefaultProfile(manager, updatesNeeded)
     doUpdateRequest(manager, updatesNeeded.toMap, clock.getTimeMillis())
     assert(numExecutorsTargetForDefaultProfileId(manager) === 16)
@@ -1451,7 +1451,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     // Verify whether the initial number of executors is kept with no pending tasks
     assert(numExecutorsTargetForDefaultProfileId(manager) === 3)
 
-    post(SparkListenerStageSubmitted(createStageInfo(1, 2)))
+    post(SparkListenerStageSubmitted(createStageInfo(1, 1, 2)))
     clock.advance(100L)
 
     assert(maxNumExecutorsNeededPerResourceProfile(manager, defaultProfile) === 2)
@@ -1492,7 +1492,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
       Seq.empty,
       Seq.empty
     )
-    val stageInfo1 = createStageInfo(1, 5, localityPreferences1)
+    val stageInfo1 = createStageInfo(1, 1, 5, localityPreferences1)
     post(SparkListenerStageSubmitted(stageInfo1))
 
     assert(localityAwareTasksForDefaultProfile(manager) === 3)
@@ -1505,7 +1505,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
       Seq(TaskLocation("host3"), TaskLocation("host4"), TaskLocation("host5")),
       Seq.empty
     )
-    val stageInfo2 = createStageInfo(2, 3, localityPreferences2)
+    val stageInfo2 = createStageInfo(2, 2, 3, localityPreferences2)
     post(SparkListenerStageSubmitted(stageInfo2))
 
     assert(localityAwareTasksForDefaultProfile(manager) === 5)
@@ -1522,7 +1522,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     val manager = createManager(createConf())
     assert(maxNumExecutorsNeededPerResourceProfile(manager, defaultProfile) === 0)
 
-    post(SparkListenerStageSubmitted(createStageInfo(0, 1)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 1)))
     assert(maxNumExecutorsNeededPerResourceProfile(manager, defaultProfile) === 1)
 
     val taskInfo = createTaskInfo(1, 1, "executor-1")
@@ -1545,7 +1545,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
 
     // Allocation manager is reset when adding executor requests are sent without reporting back
     // executor added.
-    post(SparkListenerStageSubmitted(createStageInfo(0, 10)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 10)))
 
     assert(addExecutorsToTargetForDefaultProfile(manager, updatesNeeded) === 1)
     doUpdateRequest(manager, updatesNeeded.toMap, clock.getTimeMillis())
@@ -1563,7 +1563,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     assert(manager.executorMonitor.executorCount === 0)
 
     // Allocation manager is reset when executors are added.
-    post(SparkListenerStageSubmitted(createStageInfo(0, 10)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 10)))
 
     addExecutorsToTargetForDefaultProfile(manager, updatesNeeded)
     doUpdateRequest(manager, updatesNeeded.toMap, clock.getTimeMillis())
@@ -1643,7 +1643,7 @@ class ExecutorAllocationManagerSuite extends SparkFunSuite {
     assert(numExecutorsTargetForDefaultProfileId(manager) === 1)
     post(SparkListenerExecutorAdded(
       clock.getTimeMillis(), "executor-1", new ExecutorInfo("host1", 1, Map.empty, Map.empty)))
-    post(SparkListenerStageSubmitted(createStageInfo(0, 2)))
+    post(SparkListenerStageSubmitted(createStageInfo(0, 0, 2)))
     clock.advance(1000)
     manager invokePrivate _updateAndSyncNumExecutorsTarget(clock.nanoTime())
     assert(numExecutorsTargetForDefaultProfileId(manager) === 2)
@@ -1801,12 +1801,13 @@ private object ExecutorAllocationManagerSuite extends PrivateMethodTester {
 
   private def createStageInfo(
       stageId: Int,
+      stageKey: Int,
       numTasks: Int,
       taskLocalityPreferences: Seq[Seq[TaskLocation]] = Seq.empty,
       attemptId: Int = 0,
       rp: ResourceProfile = defaultProfile
     ): StageInfo = {
-    new StageInfo(stageId, attemptId, "name", numTasks, Seq.empty, Seq.empty, "no details",
+    new StageInfo(stageId, stageKey: Int, attemptId, "name", numTasks, Seq.empty, Seq.empty, "no details",
       taskLocalityPreferences = taskLocalityPreferences, resourceProfileId = rp.id)
   }
 

@@ -146,6 +146,116 @@ private[spark] class DAGScheduler(
 
   private[scheduler] val jobIdToStageIds = new HashMap[Int, HashSet[Int]]
   private[scheduler] val stageIdToStage = new HashMap[Int, Stage]
+  private[scheduler] var stageKeyToParallelism = mutable.Map[Int, Int]()
+
+  // Stages parallelisms for tpch q9
+  // stageKeyToParallelism += (
+  //  -1486589227 -> 1,
+  //  -732100701 -> 20,
+  //  -616543026 -> 10,
+  //  -1458282867 -> 1,
+  //  1286909466 -> 20,
+  //  2070945595 -> 10,
+  //  1486002270 -> 20,
+  //  1448964932 -> 10,
+  //  -1853184438 -> 20,
+  //  -954155834 -> 20,
+  //  293574918 -> 10,
+  //  -584296613 -> 10,
+  //  -116486980 -> 10
+  // )
+
+  // Stages parallelisms for tpcds q67
+  stageKeyToParallelism += (
+    1456236308 -> 1,
+    99248824 -> 1,
+    -323021253 -> 10,
+    170317224 -> 1,
+    -1602085254 -> 10,
+    1024599244 -> 1,
+    1227740138 -> 1,
+    1683771026 -> 1,
+    1974888189 -> 1,
+    784000887 -> 1,
+    -289018939 -> 1,
+    109337727 -> 1,
+    1961211200 -> 1,
+    1192575578 -> 1,
+    -217890150 -> 1,
+    1385947920 -> 1,
+    -982988474 -> 1,
+    1071823061 -> 1,
+    -713066982 -> 1,
+    973495336 -> 10,
+    -1170800028 -> 1,
+    1990967975 -> 10,
+    1809576492 -> 1,
+    -415104182 -> 1,
+    552241795 -> 1,
+    1911172007 -> 1,
+    -1291438861 -> 10,
+    -1073622918 -> 1,
+    426469607 -> 10,
+    213557832 -> 1,
+    -474801427 -> 1,
+    514580595 -> 1,
+    1913626927 -> 1,
+    -458826117 -> 1,
+    1348404460 -> 20,
+    -1175296500 -> 20,
+    1536557769 -> 10,
+    976774951 -> 1
+  )
+
+  // Stages parallelisms for tpcds q72
+  // stageKeyToParallelism += (1456236308 -> 1,
+  //  99248824 -> 1,
+  //  -323021253 -> 10,
+  //  170317224 -> 1,
+  //  -1602085254 -> 10,
+  //  1024599244 -> 1,
+  //  1227740138 -> 1,
+  //  1683771026 -> 1,
+  //  1974888189 -> 1,
+  //  784000887 -> 1,
+  //  -289018939 -> 1,
+  //  109337727 -> 1,
+  //  1961211200 -> 1,
+  //  1192575578 -> 1,
+  //  -217890150 -> 1,
+  //  1385947920 -> 1,
+  //  -982988474 -> 1,
+  //  1071823061 -> 1,
+  //  -713066982 -> 1,
+  //  973495336 -> 10,
+  //  -1170800028 -> 1,
+  //  1990967975 -> 10,
+  //  1809576492 -> 1,
+  //  -415104182 -> 1,
+  //  552241795 -> 1,
+  //  1911172007 -> 1,
+  //  -1291438861 -> 10,
+  //  -1073622918 -> 1,
+  //  426469607 -> 10,
+  //  213557832 -> 1,
+  //  -474801427 -> 1,
+  //  845244706 -> 1,
+  //  -1630559896 -> 1,
+  //  1481613797 -> 1,
+  //  -1945360399 -> 1,
+  //  1510516530 -> 1,
+  //  514580595 -> 1,
+  //  -1551614879 -> 1,
+  //  -1827613108 -> 1,
+  //  -1801034372 -> 20,
+  //  -1360765617 -> 10,
+  //  -219297275 -> 10,
+  //  165514354 -> 20,
+  //  748693794 -> 10,
+  //  -1520406373 -> 10,
+  //  1728222202 -> 1)
+  // Note: stages wit keys -1801034372, 165514354, -219297275 can be executed in parallel
+
   /**
    * Mapping from shuffle dependency ID to the ShuffleMapStage that will generate the data for
    * that dependency. Only includes stages that are part of currently running job (when the job(s)
@@ -1325,7 +1435,15 @@ private[spark] class DAGScheduler(
         val missing = getMissingParentStages(stage).sortBy(_.id)
         logDebug("missing: " + missing)
         if (missing.isEmpty) {
-          logInfo("Submitting " + stage + " (" + stage.rdd + "), which has no missing parents")
+          if (sc.conf.getBoolean("spark.scheduler.scaleout.enabled", false) == true) {
+            val stageParallelism = stageKeyToParallelism.get(stage.key) match {
+              case None => throw new SparkException("[Custom] stageKeyToParallelism DOES NOT CONTAIN key " + stage.key)
+              case Some(p: Int) => p
+            }
+            logInfo("[Custom] Submitting " + stage + " (" + stage.rdd + ", key: " + stage.key + ", parallelism: " + stageParallelism + "), which has no missing parents")
+          } else {
+            logInfo("Submitting " + stage + " (" + stage.rdd + ", key: " + stage.key + "), which has no missing parents")
+          }
           submitMissingTasks(stage, jobId.get)
         } else {
           for (parent <- missing) {
@@ -1403,7 +1521,14 @@ private[spark] class DAGScheduler(
   /** Called when stage's parents are available and we can now do its task. */
   private def submitMissingTasks(stage: Stage, jobId: Int): Unit = {
     logDebug("submitMissingTasks(" + stage + ")")
-
+    var stageParallelism: Option[Int] = None
+    if (sc.conf.getBoolean("spark.scheduler.scaleout.enabled", false) == true) {
+      stageParallelism = Some(stageKeyToParallelism.get(stage.key) match {
+        case None => throw new SparkException("Stage key: " + stage.key + " NOT PRESENT in reference Map!")
+        case Some(p: Int) => p
+      })
+      logInfo(s"[Custom] submitMissingTasks of stage ${stage} with key ${stage.key} and parallelism ${stageParallelism.get}")
+    }
     // Before find missing partition, do the intermediate state clean work first.
     // The operation here can make sure for the partially completed intermediate stage,
     // `findMissingPartitions()` returns all partitions every time.
@@ -1563,7 +1688,7 @@ private[spark] class DAGScheduler(
       logInfo(s"Submitting ${tasks.size} missing tasks from $stage (${stage.rdd}) (first 15 " +
         s"tasks are for partitions ${tasks.take(15).map(_.partitionId)})")
       taskScheduler.submitTasks(new TaskSet(
-        tasks.toArray, stage.id, stage.latestInfo.attemptNumber, jobId, properties,
+        tasks.toArray, stage.id, stageParallelism, stage.latestInfo.attemptNumber, jobId, properties,
         stage.resourceProfileId))
     } else {
       // Because we posted SparkListenerStageSubmitted earlier, we should mark

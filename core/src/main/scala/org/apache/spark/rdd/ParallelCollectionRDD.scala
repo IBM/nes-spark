@@ -23,6 +23,7 @@ import scala.collection.Map
 import scala.collection.immutable.NumericRange
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
+import scala.util.hashing.MurmurHash3
 
 import org.apache.spark._
 import org.apache.spark.serializer.JavaSerializer
@@ -83,6 +84,7 @@ private[spark] class ParallelCollectionPartition[T: ClassTag](
 
 private[spark] class ParallelCollectionRDD[T: ClassTag](
     sc: SparkContext,
+    uniqueKey: Option[Int],
     @transient private val data: Seq[T],
     numSlices: Int,
     locationPrefs: Map[Int, Seq[String]])
@@ -91,6 +93,8 @@ private[spark] class ParallelCollectionRDD[T: ClassTag](
   // cached. It might be worthwhile to write the data to a file in the DFS and read it in the split
   // instead.
   // UPDATE: A parallel collection can be checkpointed to HDFS, which achieves this goal.
+
+  override def key: Int = uniqueKey.getOrElse(MurmurHash3.finalizeHash(MurmurHash3.listHash(MurmurHash3.stringHash(context.getCallSite().shortForm) :: dependencies.map(d => d.rdd.key).toList, 0), 0))
 
   override def getPartitions: Array[Partition] = {
     val slices = ParallelCollectionRDD.slice(data, numSlices).toArray

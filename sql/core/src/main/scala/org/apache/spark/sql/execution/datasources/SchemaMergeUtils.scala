@@ -17,6 +17,8 @@
 
 package org.apache.spark.sql.execution.datasources
 
+import scala.util.hashing.MurmurHash3
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 
@@ -62,11 +64,14 @@ object SchemaMergeUtils extends Logging {
 
     val ignoreCorruptFiles = sparkSession.sessionState.conf.ignoreCorruptFiles
 
+    val listFilesPaths = files.map(f => f.getPath.toString)
+    val uniqueKey = MurmurHash3.finalizeHash(MurmurHash3.stringHash(listFilesPaths.mkString(",")), 0)
+
     // Issues a Spark job to read Parquet/ORC schema in parallel.
     val partiallyMergedSchemas =
       sparkSession
         .sparkContext
-        .parallelize(partialFileStatusInfo, numParallelism)
+        .parallelizeWithKey(uniqueKey, partialFileStatusInfo, numParallelism)
         .mapPartitions { iterator =>
           // Resembles fake `FileStatus`es with serialized path and length information.
           val fakeFileStatuses = iterator.map { case (path, length) =>

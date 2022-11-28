@@ -115,7 +115,7 @@ class EventLoggingListenerSuite extends SparkFunSuite with LocalSparkContext wit
 
     val stageId = 1
     val jobId = 1
-    val stageInfo = new StageInfo(stageId, 0, stageId.toString, 0,
+    val stageInfo = new StageInfo(stageId, 0, 0, stageId.toString, 0,
       Seq.empty, Seq.empty, "details",
       resourceProfileId = ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID)
 
@@ -546,13 +546,13 @@ class EventLoggingListenerSuite extends SparkFunSuite with LocalSparkContext wit
   }
 
   private def createStageSubmittedEvent(stageId: Int) = {
-    SparkListenerStageSubmitted(new StageInfo(stageId, 0, stageId.toString, 0,
+    SparkListenerStageSubmitted(new StageInfo(stageId, 0, 0, stageId.toString, 0,
       Seq.empty, Seq.empty, "details",
       resourceProfileId = ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID))
   }
 
   private def createStageCompletedEvent(stageId: Int) = {
-    SparkListenerStageCompleted(new StageInfo(stageId, 0, stageId.toString, 0,
+    SparkListenerStageCompleted(new StageInfo(stageId, 0, 0, stageId.toString, 0,
       Seq.empty, Seq.empty, "details",
       resourceProfileId = ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID))
   }
