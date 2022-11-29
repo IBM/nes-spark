@@ -1,0 +1,31 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: TMP_NAMESPACE-manager
+  namespace: TMP_NAMESPACE
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: TMP_NAMESPACE-role
+  namespace: TMP_NAMESPACE
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps"]
+  verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: TMP_NAMESPACE-rolebinding
+  namespace: TMP_NAMESPACE
+subjects:
+- kind: ServiceAccount
+  name: TMP_NAMESPACE-manager
+  namespace: nes
+roleRef:
+  kind: Role
+  name: TMP_NAMESPACE-role
+  apiGroup: rbac.authorization.k8s.io
