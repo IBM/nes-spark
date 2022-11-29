@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+
+<!-- Put site-specific property overrides in this file. -->
+
+<configuration>
+  <property>
+    <name>fs.stocator.scheme.list</name>
+    <value>s3a,cos</value>
+  </property>
+  <property>
+    <name>fs.cos.impl</name>
+    <value>com.ibm.stocator.fs.ObjectStoreFileSystem</value>
+  </property>
+  <property>
+    <name>fs.stocator.cos.impl</name>
+    <value>com.ibm.stocator.fs.cos.COSAPIClient</value>
+  </property>
+  <property>
+    <name>fs.stocator.cos.scheme</name>
+    <value>cos</value>
+  </property>
+</configuration>
