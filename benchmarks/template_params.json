@@ -1,0 +1,17 @@
+{
+    "k8s_server": "",
+    "k8s_namespace": "",
+    "pull_secret_name": "",
+    "minio_server": "",
+    "minio_access_key": "",
+    "minio_secret_key": "",
+    "s3a_region": "",
+    "s3a_bucket_prefix": "",
+    "in_data_dir": "",
+    "shuffle_data_dir": "",
+    "out_data_dir": "",
+    "docker_repo": "",
+    "docker_spark_img": "",
+    "docker_spark_img_tag": "",
+    "spark_version": ""
+}

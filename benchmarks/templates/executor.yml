@@ -1,0 +1,27 @@
+apiVersion: v1
+Kind: Pod
+metadata:
+  labels:
+    template-label-key: executor-template-label-value
+spec:
+  type: ClusterIP
+  containers:
+  - name: test-executor-container
+    image: will-be-overwritten
+    resources:
+      limits:
+        ephemeral-storage: 32G
+      requests:
+        ephemeral-storage: 32G
+    env:
+    - name: NAMENODE_HOST
+      value: crail-namenode
+    - name: NAMENODE_PORT
+      value: "9060"
+    volumes:
+      - name: crail-config
+        configMap:
+          name: crail-config
+          items:
+            - key: crail-site.conf
+              path: crail-site.conf

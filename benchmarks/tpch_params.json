@@ -1,0 +1,19 @@
+{
+    "k8s_server": "",
+    "k8s_namespace": "nes",
+    "pull_secret_name": "",
+    "minio_server": "",
+    "minio_access_key": "",
+    "minio_secret_key": "",
+    "s3a_region": "zac",
+    "s3a_bucket_prefix": "tpc-h",
+    "in_data_dir": "tpc-h",
+    "shuffle_data_dir": "nes/shuffle",
+    "log_data_dir": "nes/logs",
+    "log_d_data_dir": "nes/driver_logs",
+    "out_data_dir": "nes/outputs",
+    "docker_repo": "us.icr.io/amnestorov",
+    "docker_spark_img": "spark",
+    "docker_spark_img_tag": "custom-3.2.2",
+    "spark_version": "3.2.2"
+}
